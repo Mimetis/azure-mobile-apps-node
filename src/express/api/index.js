@@ -13,6 +13,7 @@ var express = require('express'),
     authorize = require('../middleware/authorize'),
     notAllowed = require('../middleware/notAllowed'),
     utilities = require('../../utilities'),
+    uTypes = require('../../utilities/types'),
     importDefinition = require('../../configuration/importDefinition'),
     supportedVerbs = ['get', 'post', 'put', 'patch', 'delete'];
 
@@ -49,10 +50,17 @@ module.exports = function (configuration) {
 
     function buildApiRouter(definition) {
         var apiRouter = express.Router();
+        var arrayMethod;
         Object.getOwnPropertyNames(definition).forEach(function (method) {
             if (supportedVerbs.some(function (verb) { return verb === method; })) {
                 logger.verbose("Adding method " + method + " to api " + definition.name);
                 apiRouter[method]('/', buildMethodMiddleware(definition, method));
+            } else if (uTypes.isFunction(definition[method]) && (arrayMethod = Object.keys(definition[method]).filter(function(value){ return supportedVerbs.some(function (verb) { return verb === value})} ))!== undefined)  {
+                // as we can have both post and get method, we have an array here
+                arrayMethod.forEach(function(httpMethod){
+                    apiRouter[httpMethod](definition[method][httpMethod], buildMethodMiddleware(definition, method));
+                    logger.debug("Adding method " + method + " on verb " + httpMethod + " to api " + definition.name);
+                });
             } else if (method !== 'authorize') {
                 logger.warn("Unrecognized property '" + method + "' in api " + definition.name);
             }
